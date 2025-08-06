@@ -1,0 +1,185 @@
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+const UserContext = createContext();
+
+export const useUser = () => {
+  const context = useContext(UserContext);
+  if (!context) throw new Error('useUser must be used within a UserProvider');
+  return context;
+};
+
+export const UserProvider = ({ children }) => {
+  const isMounted = useRef(true);
+
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch user profile by user ID
+  const fetchUserProfile = useCallback(async (user) => {
+    if (!user) return null;
+
+    try {
+      const { data, error: profileError } = await supabase
+        .from('crm.users')
+        .select('id, name, email, role, org_id')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) {
+        if (isMounted.current) setError(profileError.message);
+        return null;
+      }
+
+      return {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        orgId: data.org_id,
+      };
+    } catch (err) {
+      if (isMounted.current) setError(err.message || 'Unknown error');
+      return null;
+    }
+  }, []);
+
+  // Initialize current user on mount and listen to auth changes
+  useEffect(() => {
+    isMounted.current = true;
+
+    const initUser = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) throw sessionError;
+
+        if (session?.user) {
+          const profile = await fetchUserProfile(session.user);
+          if (isMounted.current) setCurrentUser(profile);
+        } else {
+          if (isMounted.current) setCurrentUser(null);
+        }
+      } catch (err) {
+        if (isMounted.current) setError(err.message || 'Failed to get session');
+      } finally {
+        if (isMounted.current) setLoading(false);
+      }
+    };
+
+    initUser();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+          if (session?.user) {
+            const profile = await fetchUserProfile(session.user);
+            if (isMounted.current) setCurrentUser(profile);
+          } else {
+            if (isMounted.current) setCurrentUser(null);
+          }
+        } catch (err) {
+          if (isMounted.current) setError(err.message || 'Auth state change error');
+        } finally {
+          if (isMounted.current) setLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      isMounted.current = false;
+      authListener?.unsubscribe();
+    };
+  }, [fetchUserProfile]);
+
+  // Sign in using email and password
+  const signIn = useCallback(
+    async (email, password) => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (signInError) {
+          setError(signInError.message);
+          return null;
+        }
+
+        if (data?.user) {
+          const profile = await fetchUserProfile(data.user);
+          setCurrentUser(profile);
+          return data.user;
+        }
+
+        return null;
+      } catch (err) {
+        setError(err.message || 'Sign-in failed');
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchUserProfile]
+  );
+
+  // Sign out user
+  const signOut = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) {
+        setError(signOutError.message);
+        return false;
+      }
+      setCurrentUser(null);
+      return true;
+    } catch (err) {
+      setError(err.message || 'Sign-out failed');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return (
+    <UserContext.Provider
+      value={{
+        currentUser,
+        loading,
+        error,
+        signIn,
+        signOut,
+        clearError: () => setError(null),
+      }}
+    >
+      {children}
+    </UserContext.Provider>
+  );
+};

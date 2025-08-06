@@ -1,0 +1,76 @@
+/* Import Tailwind's base styles */
+@tailwind base;
+
+/* Import Tailwind's component styles */
+@tailwind components;
+
+/* Import Tailwind's utility classes */
+@tailwind utilities;
+
+/* Custom global styles and overrides */
+
+/* Use the brand-black color as the default background */
+body {
+  @apply bg-brand-black text-brand-accent font-sans;
+  margin: 0;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Customize link appearance */
+a {
+  @apply text-brand-violet hover:text-brand-accent underline transition-colors duration-200;
+  text-decoration-thickness: 1.5px;
+}
+
+/* Remove underline from buttons and inputs by default */
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  outline-offset: 2px;
+}
+
+/* Selection (highlight) color consistent with brand */
+::selection {
+  background-color: theme('colors.brand.violet');
+  color: white;
+}
+
+/* Smooth focus outlines for better accessibility */
+:focus-visible {
+  outline: 2px solid theme('colors.brand.violet');
+  outline-offset: 2px;
+}
+
+/* Remove default list styles on ul/ol */
+ul,
+ol {
+  @apply list-none p-0 m-0;
+}
+
+/* Scrollbar styling (optional) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: theme('colors.brand.violetDark');
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: theme('colors.brand.black');
+}
+
+/* Additional utility: box-sizing border-box globally */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
