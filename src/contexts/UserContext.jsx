@@ -87,7 +87,8 @@ export const UserProvider = ({ children }) => {
 
     initUser();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
+    // FIX: Correctly access subscription object for cleanup
+    const { data: { subscription } = {} } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setLoading(true);
         setError(null);
@@ -109,7 +110,8 @@ export const UserProvider = ({ children }) => {
 
     return () => {
       isMounted.current = false;
-      authListener?.unsubscribe();
+      // FIX: Unsubscribe using the 'subscription' object
+      subscription?.unsubscribe();
     };
   }, [fetchUserProfile]);
 
