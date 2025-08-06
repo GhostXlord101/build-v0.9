@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLeadData } from '../contexts/LeadDataContext';
-import { Loader2, BarChart2, PieChart, TrendUp } from 'lucide-react';
+import { Loader2, BarChart2, PieChart, TrendingUp } from 'lucide-react';
 
 const Analytics = () => {
   const { leads, loading, error } = useLeadData();
@@ -90,7 +90,7 @@ const Analytics = () => {
           {/* Conversion Rate */}
           <Card>
             <div className="flex items-center space-x-3">
-              <TrendUp className="h-8 w-8 text-brand-violet" aria-hidden="true" />
+              <TrendingUp className="h-8 w-8 text-brand-violet" aria-hidden="true" />
               <h2 className="text-xl font-semibold">Conversion Rate</h2>
             </div>
             <p
