@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
+// Initialize Supabase client with environment variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -27,7 +28,7 @@ export const UserProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch user profile by user ID
+  // Fetch user profile by user ID from crm.users
   const fetchUserProfile = useCallback(async (user) => {
     if (!user) return null;
 
@@ -56,7 +57,7 @@ export const UserProvider = ({ children }) => {
     }
   }, []);
 
-  // Initialize current user on mount and listen to auth changes
+  // Initialize user session and listen to auth state changes
   useEffect(() => {
     isMounted.current = true;
 
@@ -87,7 +88,7 @@ export const UserProvider = ({ children }) => {
 
     initUser();
 
-    // FIX: Correctly access subscription object for cleanup
+    // Set up auth state listener with proper unsubscribe handling
     const { data: { subscription } = {} } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setLoading(true);
@@ -110,12 +111,11 @@ export const UserProvider = ({ children }) => {
 
     return () => {
       isMounted.current = false;
-      // FIX: Unsubscribe using the 'subscription' object
       subscription?.unsubscribe();
     };
   }, [fetchUserProfile]);
 
-  // Sign in using email and password
+  // Sign in method with email and password (calls Supabase Auth)
   const signIn = useCallback(
     async (email, password) => {
       setLoading(true);
@@ -149,17 +149,60 @@ export const UserProvider = ({ children }) => {
     [fetchUserProfile]
   );
 
-  // Sign out user
+  // Sign up method: creates user and inserts profile record in crm.users
+  const signUp = useCallback(
+    async (email, password, name) => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+
+        if (signUpError) {
+          setError(signUpError.message);
+          return null;
+        }
+
+        // If sign-up succeeds, create profile in crm.users
+        if (data?.user) {
+          await supabase.from('crm.users').insert({
+            id: data.user.id,
+            email,
+            name,
+            role: 'user',    // default role, adjust as needed
+            org_id: 'default_org', // default org, adjust or make dynamic
+          });
+
+          return data.user;
+        }
+
+        return null;
+      } catch (err) {
+        setError(err.message || 'Sign-up failed');
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  // Sign out currently logged in user
   const signOut = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
       const { error: signOutError } = await supabase.auth.signOut();
+
       if (signOutError) {
         setError(signOutError.message);
         return false;
       }
+
       setCurrentUser(null);
       return true;
     } catch (err) {
@@ -177,6 +220,7 @@ export const UserProvider = ({ children }) => {
         loading,
         error,
         signIn,
+        signUp,
         signOut,
         clearError: () => setError(null),
       }}
