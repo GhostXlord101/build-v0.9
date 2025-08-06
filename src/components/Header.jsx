@@ -5,42 +5,33 @@ const Header = () => {
   const { currentUser, signOut, loading } = useUser();
 
   const handleSignOut = async () => {
-    try {
-      await signOut();
-      // Optionally redirect after sign-out or show feedback
-    } catch (error) {
-      console.error('Sign out failed:', error);
-      // Optionally show user-friendly error in UI
-    }
+    await signOut();
   };
 
   return (
-    <header className="bg-brand-black border-b border-brand-violetDark p-4 flex items-center justify-between">
-      <div className="text-brand-violet font-bold text-lg select-none">
-        {/* You can replace this with your app logo or name */}
+    <header className="bg-brand-surface px-6 py-4 flex items-center justify-between shadow-md">
+      {/* Left side: App title or logo */}
+      <div className="text-2xl font-bold text-brand-violet select-none">
         My CRM
       </div>
 
-      <nav className="flex items-center space-x-6">
-        {currentUser ? (
-          <>
-            <div className="text-brand-accent hidden sm:block">
-              <p className="font-semibold">{currentUser.name || 'User'}</p>
-              <p className="text-sm text-brand-violetDark">{currentUser.role}</p>
-            </div>
-            <button
-              onClick={handleSignOut}
-              disabled={loading}
-              className="text-sm text-red-500 hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-red-600 rounded px-3 py-1"
-              aria-label="Sign out"
-            >
-              Sign Out
-            </button>
-          </>
-        ) : (
-          <p className="text-brand-accent">Not signed in</p>
+      {/* Right side: User greeting and Sign Out */}
+      <div className="flex items-center space-x-6">
+        {currentUser && (
+          <p className="text-sm font-semibold text-brand-accent whitespace-nowrap">
+            Hello, <span className="text-brand-violet">{currentUser.name}</span>
+          </p>
         )}
-      </nav>
+
+        <button
+          onClick={handleSignOut}
+          disabled={loading}
+          aria-label="Sign Out"
+          className="px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-white font-semibold transition disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+        >
+          {loading ? 'Signing Out...' : 'Sign Out'}
+        </button>
+      </div>
     </header>
   );
 };
