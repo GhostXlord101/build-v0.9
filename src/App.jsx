@@ -6,7 +6,7 @@ import { UserProvider, useUser } from './contexts/UserContext';
 import { LeadDataProvider } from './contexts/LeadDataContext';
 import { DataProvider } from './contexts/DataContext';
 
-// Components (pages & UI)
+// Your components (pages and layout)
 import SignIn from './components/SignIn';
 import SignUp from './components/SignUp';
 import Dashboard from './components/Dashboard';
@@ -20,7 +20,7 @@ import ContactList from './components/ContactList';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 
-// Component to manage routes with authentication guards
+// Routes component that protects authenticated routes
 const AppRoutes = () => {
   const { currentUser, loading } = useUser();
 
@@ -33,7 +33,7 @@ const AppRoutes = () => {
   }
 
   if (!currentUser) {
-    // If user is not logged in, allow only signin/signup routes
+    // User not signed in — allow sign in and sign up only
     return (
       <Routes>
         <Route path="/signin" element={<SignIn />} />
@@ -43,7 +43,7 @@ const AppRoutes = () => {
     );
   }
 
-  // User is logged in, show the main app routes
+  // User authenticated: show app UI and routes
   return (
     <div className="flex min-h-screen bg-brand-black text-brand-accent font-sans">
       <Sidebar />
