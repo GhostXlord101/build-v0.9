@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 
 const SignIn = () => {
@@ -92,7 +93,6 @@ const SignIn = () => {
             </p>
           )}
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
@@ -103,8 +103,13 @@ const SignIn = () => {
           </button>
         </form>
 
-        {/* Optional: Add links for sign-up or forgot password here */}
-
+        {/* SIGN UP LINK - Add this */}
+        <p className="mt-6 text-center text-sm text-gray-600">
+          Don’t have an account?{' '}
+          <Link to="/signup" className="text-brand-violet hover:underline font-semibold">
+            Sign Up
+          </Link>
+        </p>
       </div>
     </div>
   );
