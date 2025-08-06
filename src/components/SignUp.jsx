@@ -3,19 +3,18 @@ import { useUser } from '../contexts/UserContext';
 import { Link, useNavigate } from 'react-router-dom';
 
 const SignUp = () => {
-  const { loading, error } = useUser(); // Use auth context for loading and error state
+  const { signUp, loading, error } = useUser();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [name, setName] = useState('');
   const [formErrors, setFormErrors] = useState({});
   const [signUpError, setSignUpError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  const { signUp } = useUser(); // We'll add a signUp method to context shortly
   const navigate = useNavigate();
 
-  // Simple email validation regex
+  // Basic email validation regex
   const isValidEmail = (email) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -25,10 +24,8 @@ const SignUp = () => {
     if (!email.trim()) errors.email = 'Email is required';
     else if (!isValidEmail(email.trim())) errors.email = 'Please enter a valid email address';
     if (!password.trim()) errors.password = 'Password is required';
-    else if (password.length < 8)
-      errors.password = 'Password must be at least 8 characters';
-    if (password !== confirmPassword)
-      errors.confirmPassword = 'Passwords do not match';
+    else if (password.length < 8) errors.password = 'Password must be at least 8 characters';
+    if (password !== confirmPassword) errors.confirmPassword = 'Passwords do not match';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -44,7 +41,7 @@ const SignUp = () => {
       const user = await signUp(email.trim(), password.trim(), name.trim());
       if (user) {
         setSuccessMessage('Sign-up successful! Please check your email to confirm your account.');
-        // Optionally redirect to sign-in page after delay
+        // Redirect to sign-in after 5 seconds
         setTimeout(() => navigate('/signin'), 5000);
       }
     } catch (err) {
@@ -59,14 +56,15 @@ const SignUp = () => {
           Create Account
         </h1>
 
-        {signUpError && (
+        {(signUpError || error) && (
           <div
             role="alert"
             className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
           >
-            {signUpError}
+            {signUpError || error}
           </div>
         )}
+
         {successMessage && (
           <div
             role="alert"
@@ -82,16 +80,16 @@ const SignUp = () => {
             Full Name
           </label>
           <input
+            type="text"
             id="name"
             name="name"
-            type="text"
             className={`w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-brand-violet mb-2 ${
               formErrors.name ? 'border-red-600' : 'border-gray-300'
             }`}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            aria-invalid={formErrors.name ? "true" : "false"}
-            aria-describedby={formErrors.name ? "name-error" : undefined}
+            aria-invalid={formErrors.name ? 'true' : 'false'}
+            aria-describedby={formErrors.name ? 'name-error' : undefined}
             disabled={loading}
           />
           {formErrors.name && (
@@ -105,17 +103,17 @@ const SignUp = () => {
             Email
           </label>
           <input
+            type="email"
             id="email"
             name="email"
-            type="email"
             className={`w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-brand-violet mb-2 ${
               formErrors.email ? 'border-red-600' : 'border-gray-300'
             }`}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
-            aria-invalid={formErrors.email ? "true" : "false"}
-            aria-describedby={formErrors.email ? "email-error" : undefined}
+            aria-invalid={formErrors.email ? 'true' : 'false'}
+            aria-describedby={formErrors.email ? 'email-error' : undefined}
             disabled={loading}
           />
           {formErrors.email && (
@@ -129,17 +127,17 @@ const SignUp = () => {
             Password
           </label>
           <input
+            type="password"
             id="password"
             name="password"
-            type="password"
             className={`w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-brand-violet mb-2 ${
               formErrors.password ? 'border-red-600' : 'border-gray-300'
             }`}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
-            aria-invalid={formErrors.password ? "true" : "false"}
-            aria-describedby={formErrors.password ? "password-error" : undefined}
+            aria-invalid={formErrors.password ? 'true' : 'false'}
+            aria-describedby={formErrors.password ? 'password-error' : undefined}
             disabled={loading}
           />
           {formErrors.password && (
@@ -153,17 +151,17 @@ const SignUp = () => {
             Confirm Password
           </label>
           <input
+            type="password"
             id="confirmPassword"
             name="confirmPassword"
-            type="password"
             className={`w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-brand-violet mb-4 ${
               formErrors.confirmPassword ? 'border-red-600' : 'border-gray-300'
             }`}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             autoComplete="new-password"
-            aria-invalid={formErrors.confirmPassword ? "true" : "false"}
-            aria-describedby={formErrors.confirmPassword ? "confirm-password-error" : undefined}
+            aria-invalid={formErrors.confirmPassword ? 'true' : 'false'}
+            aria-describedby={formErrors.confirmPassword ? 'confirm-password-error' : undefined}
             disabled={loading}
           />
           {formErrors.confirmPassword && (
@@ -184,10 +182,7 @@ const SignUp = () => {
 
         <p className="mt-6 text-center text-sm text-gray-600">
           Already have an account?{' '}
-          <Link
-            to="/signin"
-            className="text-brand-violet hover:underline font-semibold"
-          >
+          <Link to="/signin" className="text-brand-violet hover:underline font-semibold">
             Sign In
           </Link>
         </p>
