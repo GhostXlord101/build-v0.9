@@ -6,8 +6,9 @@ import { UserProvider, useUser } from './contexts/UserContext';
 import { LeadDataProvider } from './contexts/LeadDataContext';
 import { DataProvider } from './contexts/DataContext';
 
-// Components (pages & common UI)
+// Components (pages & UI)
 import SignIn from './components/SignIn';
+import SignUp from './components/SignUp';
 import Dashboard from './components/Dashboard';
 import LeadList from './components/LeadList';
 import LeadDetail from './components/LeadDetail';
@@ -19,7 +20,7 @@ import ContactList from './components/ContactList';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 
-// Conditional Routes component to handle auth status and route protection
+// Component to manage routes with authentication guards
 const AppRoutes = () => {
   const { currentUser, loading } = useUser();
 
@@ -32,16 +33,17 @@ const AppRoutes = () => {
   }
 
   if (!currentUser) {
+    // If user is not logged in, allow only signin/signup routes
     return (
       <Routes>
         <Route path="/signin" element={<SignIn />} />
-        {/* Redirect any other route to sign-in */}
+        <Route path="/signup" element={<SignUp />} />
         <Route path="*" element={<Navigate to="/signin" replace />} />
       </Routes>
     );
   }
 
-  // User is authenticated; show main app with sidebar and header
+  // User is logged in, show the main app routes
   return (
     <div className="flex min-h-screen bg-brand-black text-brand-accent font-sans">
       <Sidebar />
