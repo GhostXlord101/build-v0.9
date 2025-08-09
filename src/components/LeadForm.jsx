@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useLeadData } from '../contexts/LeadDataContext';
+import { useData } from '../contexts/DataContext';
 import { useUser } from '../contexts/UserContext';
 
 const validateEmail = (email) =>
@@ -18,13 +19,8 @@ const LeadForm = ({ lead = null, onSave, onCancel }) => {
     loading,
   } = useLeadData();
 
-  // Get pipelines and stages from context if available
-  // (If you use a DataContext for pipelines/stages, adjust accordingly)
-  // For now, assume you pass them as props or have them available elsewhere
-
-  const [pipelines, setPipelines] = useState([]);
-  const [stages, setStages] = useState([]);
-  // Replace above with import from context if using one
+  // Get pipelines and stages from DataContext
+  const { pipelines, stages } = useData();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -39,13 +35,6 @@ const LeadForm = ({ lead = null, onSave, onCancel }) => {
 
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
-
-  // Fetch pipelines and stages if not available
-  useEffect(() => {
-    // TODO: fetch pipelines/stages from context or API here if needed and set state
-    // setPipelines(...);
-    // setStages(...);
-  }, []);
 
   // When editing, prefill the form
   useEffect(() => {
@@ -118,17 +107,21 @@ const LeadForm = ({ lead = null, onSave, onCancel }) => {
 
   // Utility: render select options
   const renderOptions = (items, valueProp, labelProp) =>
-    (items || []).map((item) => (
-      <option key={item[valueProp]} value={item[valueProp]}>
-        {item[labelProp]}
-      </option>
-    ));
+    (items || []).map((item) => {
+      const value = typeof item[valueProp] === 'function' ? item[valueProp](item) : item[valueProp];
+      const label = typeof item[labelProp] === 'function' ? item[labelProp](item) : item[labelProp];
+      return (
+        <option key={item[valueProp]} value={item[valueProp]}>
+          {label}
+        </option>
+      );
+    });
 
   const availableStages =
-    formData.pipelineId && stages
+    formData.pipelineId && stages && stages.length > 0
       ? stages
-          .filter((stage) => stage.pipeline_id === formData.pipelineId)
-          .sort((a, b) => a.order_position - b.order_position)
+          .filter((stage) => stage.pipelineId === formData.pipelineId)
+          .sort((a, b) => (a.orderPosition || 0) - (b.orderPosition || 0))
       : [];
 
   return (
@@ -288,7 +281,7 @@ const LeadForm = ({ lead = null, onSave, onCancel }) => {
           disabled={loading}
         >
           <option value="">Unassigned</option>
-          {renderOptions(users, 'id', user => `${user.name} (${user.role})`)}
+          {renderOptions(users, 'id', (user) => `${user.name} (${user.role})`)}
         </select>
       </div>
 

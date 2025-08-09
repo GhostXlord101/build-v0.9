@@ -86,12 +86,12 @@ export const LeadDataProvider = ({ children }) => {
       if (role === 'Sales Rep') {
         switch (action) {
           case 'view':
-            return !lead || lead.assignedTo === userId;
+            return !lead || lead.assignedTo === userId || lead.createdBy === userId;
           case 'create':
             return true; // can create leads
           case 'edit':
           case 'delete':
-            return lead && lead.assignedTo === userId;
+            return lead && (lead.assignedTo === userId || lead.createdBy === userId);
           default:
             return false;
         }
@@ -318,6 +318,7 @@ export const LeadDataProvider = ({ children }) => {
           stage_id: leadData.stageId || null,
           pipeline_id: leadData.pipelineId || null,
           assigned_to: leadData.assignedTo || null,
+          created_by: currentUser.id,
           org_id: currentUser.orgId,
           custom_fields: leadData.customFields || {},
         };
@@ -357,8 +358,14 @@ export const LeadDataProvider = ({ children }) => {
     async (leadId, updates) => {
       if (!currentUser) return null;
 
-      const existingLead = leads.find((l) => l.id === leadId);
-      if (!existingLead || !hasPermission('edit', existingLead)) {
+      // Fetch the lead first to check permissions
+      const existingLead = await fetchLeadById(leadId);
+      if (!existingLead) {
+        setErrorLeads('Lead not found');
+        return null;
+      }
+
+      if (!hasPermission('edit', existingLead)) {
         setErrorLeads('Permission denied for updating lead');
         return null;
       }
@@ -417,8 +424,15 @@ export const LeadDataProvider = ({ children }) => {
   const deleteLead = useCallback(
     async (leadId) => {
       if (!currentUser) return false;
-      const existingLead = leads.find((l) => l.id === leadId);
-      if (!existingLead || !hasPermission('delete', existingLead)) {
+      
+      // Fetch the lead first to check permissions
+      const existingLead = await fetchLeadById(leadId);
+      if (!existingLead) {
+        setErrorLeads('Lead not found');
+        return false;
+      }
+      
+      if (!hasPermission('delete', existingLead)) {
         setErrorLeads('Permission denied for deleting lead');
         return false;
       }
@@ -516,6 +530,12 @@ export const LeadDataProvider = ({ children }) => {
         return null;
       }
 
+      // Check if user has permission to edit the lead
+      const lead = await fetchLeadById(contactData.leadId);
+      if (!lead || !hasPermission('edit', lead)) {
+        setErrorContacts('Permission denied for adding contact to this lead');
+        return null;
+      }
       setLoadingContacts(true);
       setErrorContacts(null);
 
@@ -550,7 +570,7 @@ export const LeadDataProvider = ({ children }) => {
         return null;
       }
     },
-    [currentUser]
+    [currentUser, fetchLeadById, hasPermission]
   );
 
   // Update contact by id
@@ -558,6 +578,24 @@ export const LeadDataProvider = ({ children }) => {
     async (contactId, updates) => {
       if (!currentUser) return null;
 
+      // First get the contact to find its lead and check permissions
+      const { data: contact, error: contactError } = await supabaseWithOrg()
+        .from('crm.contacts')
+        .select('id, lead_id')
+        .eq('id', contactId)
+        .eq('org_id', currentUser.orgId)
+        .single();
+
+      if (contactError || !contact) {
+        setErrorContacts('Contact not found');
+        return null;
+      }
+
+      const lead = await fetchLeadById(contact.lead_id);
+      if (!lead || !hasPermission('edit', lead)) {
+        setErrorContacts('Permission denied for updating this contact');
+        return null;
+      }
       setLoadingContacts(true);
       setErrorContacts(null);
 
@@ -602,7 +640,7 @@ export const LeadDataProvider = ({ children }) => {
         return null;
       }
     },
-    [currentUser]
+    [currentUser, fetchLeadById, hasPermission]
   );
 
   // Soft-delete contact by id
@@ -610,6 +648,24 @@ export const LeadDataProvider = ({ children }) => {
     async (contactId) => {
       if (!currentUser) return false;
 
+      // First get the contact to find its lead and check permissions
+      const { data: contact, error: contactError } = await supabaseWithOrg()
+        .from('crm.contacts')
+        .select('id, lead_id')
+        .eq('id', contactId)
+        .eq('org_id', currentUser.orgId)
+        .single();
+
+      if (contactError || !contact) {
+        setErrorContacts('Contact not found');
+        return false;
+      }
+
+      const lead = await fetchLeadById(contact.lead_id);
+      if (!lead || !hasPermission('delete', lead)) {
+        setErrorContacts('Permission denied for deleting this contact');
+        return false;
+      }
       setLoadingContacts(true);
       setErrorContacts(null);
 
@@ -633,7 +689,7 @@ export const LeadDataProvider = ({ children }) => {
         return false;
       }
     },
-    [currentUser]
+    [currentUser, fetchLeadById, hasPermission]
   );
 
   // Bulk update leads (partial update fields)
@@ -641,6 +697,19 @@ export const LeadDataProvider = ({ children }) => {
     async (leadIds, updates) => {
       if (!currentUser) return [];
 
+      // Check permissions for each lead before bulk update
+      const leadsToUpdate = [];
+      for (const leadId of leadIds) {
+        const lead = await fetchLeadById(leadId);
+        if (lead && hasPermission('edit', lead)) {
+          leadsToUpdate.push(leadId);
+        }
+      }
+
+      if (leadsToUpdate.length === 0) {
+        setErrorLeads('No leads found or permission denied for all selected leads');
+        return [];
+      }
       setLoadingLeads(true);
       setErrorLeads(null);
 
@@ -655,7 +724,7 @@ export const LeadDataProvider = ({ children }) => {
         const { data, error: updateError } = await supabaseWithOrg()
           .from('crm.leads')
           .update(updateData)
-          .in('id', leadIds)
+          .in('id', leadsToUpdate)
           .eq('org_id', currentUser.orgId)
           .select();
 
@@ -676,7 +745,7 @@ export const LeadDataProvider = ({ children }) => {
         return [];
       }
     },
-    [currentUser]
+    [currentUser, fetchLeadById, hasPermission]
   );
 
   // Clear caches and reset state helper

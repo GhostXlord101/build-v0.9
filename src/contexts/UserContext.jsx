@@ -22,8 +22,6 @@ export const useUser = () => {
 };
 
 export const UserProvider = ({ children }) => {
-  const isMounted = useRef(true);
-
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -59,7 +57,7 @@ export const UserProvider = ({ children }) => {
 
   // Initialize user session and listen to auth state changes
   useEffect(() => {
-    isMounted.current = true;
+    let isMounted = true;
 
     const initUser = async () => {
       setLoading(true);
@@ -75,14 +73,14 @@ export const UserProvider = ({ children }) => {
 
         if (session?.user) {
           const profile = await fetchUserProfile(session.user);
-          if (isMounted.current) setCurrentUser(profile);
+          if (isMounted) setCurrentUser(profile);
         } else {
-          if (isMounted.current) setCurrentUser(null);
+          if (isMounted) setCurrentUser(null);
         }
       } catch (err) {
-        if (isMounted.current) setError(err.message || 'Failed to get session');
+        if (isMounted) setError(err.message || 'Failed to get session');
       } finally {
-        if (isMounted.current) setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
@@ -91,26 +89,28 @@ export const UserProvider = ({ children }) => {
     // Set up auth state listener with proper unsubscribe handling
     const { data: { subscription } = {} } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!isMounted) return;
+        
         setLoading(true);
         setError(null);
 
         try {
           if (session?.user) {
             const profile = await fetchUserProfile(session.user);
-            if (isMounted.current) setCurrentUser(profile);
+            if (isMounted) setCurrentUser(profile);
           } else {
-            if (isMounted.current) setCurrentUser(null);
+            if (isMounted) setCurrentUser(null);
           }
         } catch (err) {
-          if (isMounted.current) setError(err.message || 'Auth state change error');
+          if (isMounted) setError(err.message || 'Auth state change error');
         } finally {
-          if (isMounted.current) setLoading(false);
+          if (isMounted) setLoading(false);
         }
       }
     );
 
     return () => {
-      isMounted.current = false;
+      isMounted = false;
       subscription?.unsubscribe();
     };
   }, [fetchUserProfile]);
