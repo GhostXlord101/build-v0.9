@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useEffect,
   useRef,
+  useMemo,
 } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useUser } from './UserContext';
@@ -38,7 +39,7 @@ export const LeadDataProvider = ({ children }) => {
   const [loadingUsers, setLoadingUsers] = useState(false);
 
   // Combined loading indicator for convenience
-  const loading = loadingLeads || loadingContacts || loadingUsers;
+  const loading = useMemo(() => loadingLeads || loadingContacts || loadingUsers, [loadingLeads, loadingContacts, loadingUsers]);
 
   // Separate error messages by source
   const [errorLeads, setErrorLeads] = useState(null);
@@ -46,10 +47,10 @@ export const LeadDataProvider = ({ children }) => {
   const [errorUsers, setErrorUsers] = useState(null);
 
   // Combined error message (could be combined more intelligently)
-  const error = errorLeads || errorContacts || errorUsers;
+  const error = useMemo(() => errorLeads || errorContacts || errorUsers, [errorLeads, errorContacts, errorUsers]);
 
   // Caches for data with expiration timestamps
-  const CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+  const CACHE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
   // We use refs to hold caches so that setting them doesn't cause rerenders
   // Structure: Map<cacheKey, {data, timestamp}>
@@ -152,12 +153,13 @@ export const LeadDataProvider = ({ children }) => {
           .from('crm.leads')
           .select(`
             id, name, email, phone, status, stage_id, pipeline_id, assigned_to, org_id, custom_fields, created_at, updated_at,
-            assignedUser:assigned_to (id, name, email),
+            assignedUser:assigned_to (id, name),
             pipeline:pipeline_id (id, name),
-            stage:stage_id (id, name, order_position)
+            stage:stage_id (id, name)
           `)
           .eq('org_id', currentUser.orgId)
           .is('deleted_at', null)
+          .limit(100) // Add pagination limit
           .order('created_at', { ascending: false });
 
         if (filters.status && filters.status !== 'all') {
@@ -760,9 +762,11 @@ export const LeadDataProvider = ({ children }) => {
   useEffect(() => {
     if (!currentUser) return;
 
-    // Fetch users, then leads (avoid race)
-    fetchUsers();
-    fetchLeads();
+    // Fetch in parallel for better performance
+    Promise.all([
+      fetchUsers(),
+      fetchLeads()
+    ]).catch(console.error);
   }, [currentUser, fetchUsers, fetchLeads]);
 
   return (

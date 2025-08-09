@@ -4,7 +4,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
-  useRef,
+  useMemo,
 } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -35,10 +35,11 @@ export const UserProvider = ({ children }) => {
         .from('crm.users')
         .select('id, name, email, role, org_id')
         .eq('id', user.id)
+        .limit(1)
         .single();
 
       if (profileError) {
-        if (isMounted.current) setError(profileError.message);
+        setError(profileError.message);
         return null;
       }
 
@@ -50,7 +51,7 @@ export const UserProvider = ({ children }) => {
         orgId: data.org_id,
       };
     } catch (err) {
-      if (isMounted.current) setError(err.message || 'Unknown error');
+      setError(err.message || 'Unknown error');
       return null;
     }
   }, []);
@@ -91,7 +92,10 @@ export const UserProvider = ({ children }) => {
       async (event, session) => {
         if (!isMounted) return;
         
-        setLoading(true);
+        // Don't show loading for sign out events
+        if (event !== 'SIGNED_OUT') {
+          setLoading(true);
+        }
         setError(null);
 
         try {
@@ -168,13 +172,18 @@ export const UserProvider = ({ children }) => {
 
         // If sign-up succeeds, create profile in crm.users
         if (data?.user) {
-          await supabase.from('crm.users').insert({
+          const { error: insertError } = await supabase.from('crm.users').insert({
             id: data.user.id,
             email,
             name,
             role: 'user',    // default role, adjust as needed
             org_id: 'default_org', // default org, adjust or make dynamic
           });
+          
+          if (insertError) {
+            setError(insertError.message);
+            return null;
+          }
 
           return data.user;
         }

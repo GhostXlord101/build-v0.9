@@ -1,41 +1,42 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useLeadData } from '../contexts/LeadDataContext';
 import { Loader2, BarChart2, PieChart, TrendingUp } from 'lucide-react';
 
 const Analytics = () => {
   const { leads, loading, error } = useLeadData();
-  const [stats, setStats] = useState({
-    totalLeads: 0,
-    statusCounts: {},
-    conversionRate: 0,
-    qualifiedLeads: 0,
-    wonLeads: 0,
-    lostLeads: 0,
-  });
-
-  useEffect(() => {
-    if (!loading && leads) {
-      const totalLeads = leads.length;
-      const statusCounts = leads.reduce((acc, lead) => {
-        acc[lead.status] = (acc[lead.status] || 0) + 1;
-        return acc;
-      }, {});
-
-      const qualifiedLeads = statusCounts['Qualified'] || 0;
-      const wonLeads = statusCounts['Won'] || 0;
-      const lostLeads = statusCounts['Lost'] || 0;
-      const conversionRate = totalLeads > 0 ? ((wonLeads / totalLeads) * 100).toFixed(1) : 0;
-
-      setStats({
-        totalLeads,
-        statusCounts,
-        conversionRate,
-        qualifiedLeads,
-        wonLeads,
-        lostLeads,
-      });
+  
+  const stats = useMemo(() => {
+    if (!leads || leads.length === 0) {
+      return {
+        totalLeads: 0,
+        statusCounts: {},
+        conversionRate: 0,
+        qualifiedLeads: 0,
+        wonLeads: 0,
+        lostLeads: 0,
+      };
     }
-  }, [leads, loading]);
+
+    const totalLeads = leads.length;
+    const statusCounts = leads.reduce((acc, lead) => {
+      acc[lead.status] = (acc[lead.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const qualifiedLeads = statusCounts['Qualified'] || 0;
+    const wonLeads = statusCounts['Won'] || 0;
+    const lostLeads = statusCounts['Lost'] || 0;
+    const conversionRate = totalLeads > 0 ? ((wonLeads / totalLeads) * 100).toFixed(1) : 0;
+
+    return {
+      totalLeads,
+      statusCounts,
+      conversionRate,
+      qualifiedLeads,
+      wonLeads,
+      lostLeads,
+    };
+  }, [leads]);
 
   return (
     <main className="min-h-screen p-6 bg-brand-black text-brand-accent font-sans select-none">

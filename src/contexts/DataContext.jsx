@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useUser } from './UserContext';
 
@@ -30,10 +30,10 @@ export const DataProvider = ({ children }) => {
   const [errorPipelines, setErrorPipelines] = useState(null);
   const [errorStages, setErrorStages] = useState(null);
 
-  const loading = loadingUsers || loadingPipelines || loadingStages;
-  const error = errorUsers || errorPipelines || errorStages;
+  const loading = useMemo(() => loadingUsers || loadingPipelines || loadingStages, [loadingUsers, loadingPipelines, loadingStages]);
+  const error = useMemo(() => errorUsers || errorPipelines || errorStages, [errorUsers, errorPipelines, errorStages]);
 
-  const CACHE_EXPIRY_MS = 5 * 60 * 1000;
+  const CACHE_EXPIRY_MS = 10 * 60 * 1000; // Increased to 10 minutes
   const usersCache = useRef({ data: null, timestamp: 0 });
   const pipelinesCache = useRef({ data: null, timestamp: 0 });
   const stagesCache = useRef({ data: null, timestamp: 0 });
@@ -139,9 +139,13 @@ export const DataProvider = ({ children }) => {
   // --------- Initial fetch for all data resources --------
   useEffect(() => {
     if (!currentUser) return;
-    fetchUsers();
-    fetchPipelines();
-    fetchStages();
+    
+    // Fetch all data in parallel for better performance
+    Promise.all([
+      fetchUsers(),
+      fetchPipelines(),
+      fetchStages()
+    ]).catch(console.error);
   }, [currentUser, fetchUsers, fetchPipelines, fetchStages]);
 
   // --------- Clear all caches & data -------

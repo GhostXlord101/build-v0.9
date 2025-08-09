@@ -42,8 +42,11 @@ const AppRoutes = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen text-brand-violet text-xl">
-        Loading...
+      <div className="flex items-center justify-center min-h-screen bg-brand-black">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-violet mx-auto mb-4"></div>
+          <p className="text-brand-violet text-xl">Loading CRM...</p>
+        </div>
       </div>
     );
   }

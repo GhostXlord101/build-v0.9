@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { useLeadData } from '../contexts/LeadDataContext';
 import { useData } from '../contexts/DataContext'; // The DataContext you have for pipelines, stages, and users
@@ -18,10 +18,12 @@ const Dashboard = () => {
 
   // If contacts count is not in any context, you could add a fetchContacts method later.
 
-  const totalLeads = leads?.length ?? 0;
-  const totalUsers = users?.length ?? 0;
-  const totalPipelines = pipelines?.length ?? 0;
-  const totalStages = stages?.length ?? 0;
+  const stats = useMemo(() => ({
+    totalLeads: leads?.length ?? 0,
+    totalUsers: users?.length ?? 0,
+    totalPipelines: pipelines?.length ?? 0,
+    totalStages: stages?.length ?? 0,
+  }), [leads, users, pipelines, stages]);
 
   // Placeholder contacts count — replace with actual value if you add a context or API call
   const totalContacts = 'N/A';
@@ -40,11 +42,11 @@ const Dashboard = () => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
-        <StatCard label="Leads" loading={loading} count={totalLeads} />
+        <StatCard label="Leads" loading={loading} count={stats.totalLeads} />
         <StatCard label="Contacts" loading={loading} count={totalContacts} />
-        <StatCard label="Users" loading={loading} count={totalUsers} />
-        <StatCard label="Pipelines" loading={loading} count={totalPipelines} />
-        <StatCard label="Stages" loading={loading} count={totalStages} />
+        <StatCard label="Users" loading={loading} count={stats.totalUsers} />
+        <StatCard label="Pipelines" loading={loading} count={stats.totalPipelines} />
+        <StatCard label="Stages" loading={loading} count={stats.totalStages} />
       </div>
     </main>
   );

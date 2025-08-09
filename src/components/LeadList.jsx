@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLeadData } from '../contexts/LeadDataContext';
 
 const LeadList = () => {
@@ -20,7 +20,7 @@ const LeadList = () => {
 
   // Pagination state (simple client side example)
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 25; // Increased page size
 
   // Bulk selection state
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
@@ -30,24 +30,42 @@ const LeadList = () => {
   const [inlineError, setInlineError] = useState(null);
 
   // Filters – convert 'all' to undefined for context
-  const filters = {
+  const filters = useMemo(() => ({
     search: search.trim(),
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     ...(pipelineFilter !== 'all' ? { pipelineId: pipelineFilter } : {}),
     ...(assignedToFilter !== 'all' ? { assignedTo: assignedToFilter } : {}),
-  };
+  }), [search, statusFilter, pipelineFilter, assignedToFilter]);
 
-  // Fetch leads when filters change
+  // Debounced fetch function
+  const debouncedFetchLeads = useCallback(
+    debounce((filters) => {
+      fetchLeads(filters);
+    }, 300),
+    [fetchLeads]
+  );
+
+  // Fetch leads when filters change (debounced for search)
   useEffect(() => {
-    fetchLeads(filters);
+    if (filters.search) {
+      debouncedFetchLeads(filters);
+    } else {
+      fetchLeads(filters);
+    }
     setCurrentPage(1); // Reset to first page upon refilter!
     setSelectedLeadIds([]);
-  }, [fetchLeads, statusFilter, pipelineFilter, assignedToFilter, search]);
+  }, [filters, fetchLeads, debouncedFetchLeads]);
 
-  // Pagination calculations
-  const totalLeads = leads.length;
-  const totalPages = Math.max(1, Math.ceil(totalLeads / PAGE_SIZE));
-  const paginatedLeads = leads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  // Memoized pagination calculations
+  const paginationData = useMemo(() => {
+    const totalLeads = leads.length;
+    const totalPages = Math.max(1, Math.ceil(totalLeads / PAGE_SIZE));
+    const paginatedLeads = leads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    
+    return { totalLeads, totalPages, paginatedLeads };
+  }, [leads, currentPage]);
+
+  const { totalLeads, totalPages, paginatedLeads } = paginationData;
 
   // Handle checkbox toggles for bulk select
   const toggleSelectLead = (leadId) => {
@@ -362,5 +380,18 @@ const LeadList = () => {
     </section>
   );
 };
+
+// Simple debounce utility
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
 
 export default LeadList;
