@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ErrorBoundary } from 'react-error-boundary';
 
 // Context Providers
 import { UserProvider, useUser } from './contexts/UserContext';
@@ -20,6 +21,21 @@ import ContactList from './components/ContactList';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 
+// Error Fallback Component
+const ErrorFallback = ({ error, resetErrorBoundary }) => (
+  <div className="min-h-screen flex items-center justify-center bg-brand-black text-brand-accent p-4">
+    <div className="text-center">
+      <h2 className="text-2xl font-bold text-red-500 mb-4">Something went wrong</h2>
+      <p className="text-brand-accent mb-4">{error.message}</p>
+      <button
+        onClick={resetErrorBoundary}
+        className="px-4 py-2 bg-brand-violet hover:bg-brand-violetDark text-white rounded"
+      >
+        Try again
+      </button>
+    </div>
+  </div>
+);
 // Authentication-guarded routing
 const AppRoutes = () => {
   const { currentUser, loading } = useUser();
@@ -50,17 +66,32 @@ const AppRoutes = () => {
       <div className="flex flex-col flex-1 min-h-screen">
         <Header />
         <main className="flex-1 p-4 md:p-8 overflow-auto">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/leads" element={<LeadList />} />
-            <Route path="/leads/:leadId" element={<LeadDetail />} />
-            <Route path="/leads/:leadId/edit" element={<LeadForm />} />
-            <Route path="/contacts" element={<ContactList />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/settings" element={<Settings />} />
-            {/* Catch-all: redirect to dashboard */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <ErrorBoundary FallbackComponent={ErrorFallback}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/leads" element={<LeadList />} />
+              <Route path="/leads/:leadId" element={<LeadDetail />} />
+              <Route path="/leads/:leadId/edit" element={<LeadForm />} />
+              <Route path="/contacts" element={<ContactList />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/settings" element={<Settings />} />
+              {/* 404 handling */}
+              <Route path="/404" element={
+                <div className="text-center py-12">
+                  <h1 className="text-4xl font-bold text-brand-violet mb-4">404</h1>
+                  <p className="text-brand-accent mb-4">Page not found</p>
+                  <button
+                    onClick={() => navigate('/')}
+                    className="px-4 py-2 bg-brand-violet hover:bg-brand-violetDark text-white rounded"
+                  >
+                    Go Home
+                  </button>
+                </div>
+              } />
+              {/* Catch-all: redirect to 404 */}
+              <Route path="*" element={<Navigate to="/404" replace />} />
+            </Routes>
+          </ErrorBoundary>
         </main>
       </div>
     </div>
@@ -68,15 +99,17 @@ const AppRoutes = () => {
 };
 
 const App = () => (
-  <UserProvider>
-    <DataProvider>
-      <LeadDataProvider>
-        <Router>
-          <AppRoutes />
-        </Router>
-      </LeadDataProvider>
-    </DataProvider>
-  </UserProvider>
+  <ErrorBoundary FallbackComponent={ErrorFallback}>
+    <UserProvider>
+      <DataProvider>
+        <LeadDataProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </LeadDataProvider>
+      </DataProvider>
+    </UserProvider>
+  </ErrorBoundary>
 );
 
 export default App;
