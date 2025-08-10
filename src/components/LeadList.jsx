@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLeadData } from '../contexts/LeadDataContext';
+import { useDebounce } from '../hooks/useDebounce';
+import { TableSkeleton } from './SkeletonLoader';
 
 const LeadList = () => {
   const {
-    leads,
-    fetchLeads,
-    loading,
-    error,
+    useLeadsQuery,
     deleteLead,
     hasPermission,
     bulkUpdateLeads,
@@ -18,9 +17,12 @@ const LeadList = () => {
   const [pipelineFilter, setPipelineFilter] = useState('all');
   const [assignedToFilter, setAssignedToFilter] = useState('all');
 
+  // Debounce search for better performance
+  const debouncedSearch = useDebounce(search, 300);
+
   // Pagination state (simple client side example)
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 25; // Increased page size
+  const PAGE_SIZE = 20;
 
   // Bulk selection state
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
@@ -31,30 +33,14 @@ const LeadList = () => {
 
   // Filters – convert 'all' to undefined for context
   const filters = useMemo(() => ({
-    search: search.trim(),
+    search: debouncedSearch.trim(),
     ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
     ...(pipelineFilter !== 'all' ? { pipelineId: pipelineFilter } : {}),
     ...(assignedToFilter !== 'all' ? { assignedTo: assignedToFilter } : {}),
-  }), [search, statusFilter, pipelineFilter, assignedToFilter]);
+  }), [debouncedSearch, statusFilter, pipelineFilter, assignedToFilter]);
 
-  // Debounced fetch function
-  const debouncedFetchLeads = useCallback(
-    debounce((filters) => {
-      fetchLeads(filters);
-    }, 300),
-    [fetchLeads]
-  );
-
-  // Fetch leads when filters change (debounced for search)
-  useEffect(() => {
-    if (filters.search) {
-      debouncedFetchLeads(filters);
-    } else {
-      fetchLeads(filters);
-    }
-    setCurrentPage(1); // Reset to first page upon refilter!
-    setSelectedLeadIds([]);
-  }, [filters, fetchLeads, debouncedFetchLeads]);
+  // Use React Query for leads
+  const { data: leads = [], isLoading, error, refetch } = useLeadsQuery(filters);
 
   // Memoized pagination calculations
   const paginationData = useMemo(() => {
@@ -92,7 +78,7 @@ const LeadList = () => {
     setInlineError(null);
     await bulkUpdateLeads(selectedLeadIds, { status: newStatus });
     setSelectedLeadIds([]);
-    fetchLeads(filters);
+    refetch();
   };
 
   // Handle single lead delete with inline confirmation
@@ -111,7 +97,7 @@ const LeadList = () => {
     }
     const success = await deleteLead(leadId);
     if (success) {
-      fetchLeads(filters);
+      refetch();
     } else {
       setInlineError('Failed to delete the lead.');
     }
@@ -247,8 +233,8 @@ const LeadList = () => {
       )}
 
       {/* Leads Table */}
-      {loading ? (
-        <p className="text-brand-accent">Loading leads...</p>
+      {isLoading ? (
+        <TableSkeleton rows={10} columns={7} />
       ) : error ? (
         <p role="alert" className="text-red-500">
           Error loading leads: {error}
@@ -381,17 +367,5 @@ const LeadList = () => {
   );
 };
 
-// Simple debounce utility
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
 
 export default LeadList;

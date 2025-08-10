@@ -3,11 +3,11 @@ import React, {
   useContext,
   useState,
   useCallback,
-  useEffect,
   useRef,
   useMemo,
 } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUser } from './UserContext';
 
 // Initialize Supabase client
@@ -30,43 +30,7 @@ export const LeadDataProvider = ({ children }) => {
 
   // State
   const [leads, setLeads] = useState([]);
-  const [contacts, setContacts] = useState([]);
-  const [users, setUsers] = useState([]);
-
-  // Separate loading states to avoid race condition issues
-  const [loadingLeads, setLoadingLeads] = useState(false);
-  const [loadingContacts, setLoadingContacts] = useState(false);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-
-  // Combined loading indicator for convenience
-  const loading = useMemo(() => loadingLeads || loadingContacts || loadingUsers, [loadingLeads, loadingContacts, loadingUsers]);
-
-  // Separate error messages by source
-  const [errorLeads, setErrorLeads] = useState(null);
-  const [errorContacts, setErrorContacts] = useState(null);
-  const [errorUsers, setErrorUsers] = useState(null);
-
-  // Combined error message (could be combined more intelligently)
-  const error = useMemo(() => errorLeads || errorContacts || errorUsers, [errorLeads, errorContacts, errorUsers]);
-
-  // Caches for data with expiration timestamps
-  const CACHE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
-
-  // We use refs to hold caches so that setting them doesn't cause rerenders
-  // Structure: Map<cacheKey, {data, timestamp}>
-  const leadsCache = useRef(new Map());
-  const contactsCache = useRef(new Map());
-
-  // Utility function to check cache validity
-  const isCacheValid = (timestamp) =>
-    timestamp && Date.now() - timestamp < CACHE_EXPIRY_MS;
-
-  // Clear all errors
-  const clearError = useCallback(() => {
-    setErrorLeads(null);
-    setErrorContacts(null);
-    setErrorUsers(null);
-  }, []);
+  const queryClient = useQueryClient();
 
   // Permission check helper
   // Usage: hasPermission(action, leadObject)
@@ -137,29 +101,18 @@ export const LeadDataProvider = ({ children }) => {
     async (filters = {}) => {
       if (!currentUser) return [];
 
-      setLoadingLeads(true);
-      setErrorLeads(null);
-
-      const cacheKey = JSON.stringify(filters);
-      const cached = leadsCache.current.get(cacheKey);
-      if (cached && isCacheValid(cached.timestamp)) {
-        setLeads(cached.data);
-        setLoadingLeads(false);
-        return cached.data;
-      }
-
       try {
         let query = supabaseWithOrg()
           .from('crm.leads')
           .select(`
-            id, name, email, phone, status, stage_id, pipeline_id, assigned_to, org_id, custom_fields, created_at, updated_at,
+            id, name, email, phone, status, stage_id, pipeline_id, assigned_to, created_at, updated_at,
             assignedUser:assigned_to (id, name),
             pipeline:pipeline_id (id, name),
             stage:stage_id (id, name)
           `)
           .eq('org_id', currentUser.orgId)
           .is('deleted_at', null)
-          .limit(100) // Add pagination limit
+          .limit(50) // Reduced limit for faster loading
           .order('created_at', { ascending: false });
 
         if (filters.status && filters.status !== 'all') {
@@ -191,8 +144,7 @@ export const LeadDataProvider = ({ children }) => {
           stageId: lead.stage_id,
           pipelineId: lead.pipeline_id,
           assignedTo: lead.assigned_to,
-          orgId: lead.org_id,
-          customFields: lead.custom_fields || {},
+          customFields: {},
           createdAt: lead.created_at ? new Date(lead.created_at) : null,
           updatedAt: lead.updated_at ? new Date(lead.updated_at) : null,
           assignedUser: lead.assignedUser || null,
@@ -200,51 +152,42 @@ export const LeadDataProvider = ({ children }) => {
           stage: lead.stage || null,
         }));
 
-        leadsCache.current.set(cacheKey, {
-          data: transformed,
-          timestamp: Date.now(),
-        });
-
-        setLeads(transformed);
         return transformed;
       } catch (err) {
-        setErrorLeads(err.message || 'Failed to fetch leads');
-        return [];
-      } finally {
-        setLoadingLeads(false);
+        throw new Error(err.message || 'Failed to fetch leads');
       }
     },
     [currentUser]
   );
 
+  // Use React Query for leads
+  const useLeadsQuery = (filters = {}) => {
+    return useQuery({
+      queryKey: ['leads', currentUser?.orgId, filters],
+      queryFn: () => fetchLeads(filters),
+      enabled: !!currentUser,
+      staleTime: 2 * 60 * 1000, // 2 minutes for leads (more dynamic)
+    });
+  };
   // Fetch a single lead by id with contacts, caching separately
   const fetchLeadById = useCallback(
     async (leadId) => {
       if (!currentUser || !leadId) return null;
 
-      setLoadingLeads(true);
-      setErrorLeads(null);
-
-      const cacheKey = `lead_${leadId}`;
-      const cached = leadsCache.current.get(cacheKey);
-      if (cached && isCacheValid(cached.timestamp)) {
-        setLoadingLeads(false);
-        return cached.data;
-      }
-
       try {
         const { data, error: fetchError } = await supabaseWithOrg()
           .from('crm.leads')
           .select(`
-            *,
+            id, name, email, phone, status, stage_id, pipeline_id, assigned_to, custom_fields, created_at, updated_at,
             assignedUser:assigned_to (id, name, email),
             pipeline:pipeline_id (id, name),
             stage:stage_id (id, name, order_position),
-            contacts:contacts (id, lead_id, name, email, phone, designation, notes, created_by, org_id, created_at, updated_at)
+            contacts:crm.contacts (id, lead_id, name, email, phone, designation, notes, created_at, updated_at)
           `)
           .eq('id', leadId)
           .eq('org_id', currentUser.orgId)
           .is('deleted_at', null)
+          .limit(1)
           .single();
 
         if (fetchError) throw fetchError;
@@ -257,8 +200,6 @@ export const LeadDataProvider = ({ children }) => {
           phone: c.phone,
           designation: c.designation,
           notes: c.notes,
-          createdBy: c.created_by,
-          orgId: c.org_id,
           createdAt: c.created_at ? new Date(c.created_at) : null,
           updatedAt: c.updated_at ? new Date(c.updated_at) : null,
         }));
@@ -272,7 +213,6 @@ export const LeadDataProvider = ({ children }) => {
           stageId: data.stage_id,
           pipelineId: data.pipeline_id,
           assignedTo: data.assigned_to,
-          orgId: data.org_id,
           customFields: data.custom_fields || {},
           createdAt: data.created_at ? new Date(data.created_at) : null,
           updatedAt: data.updated_at ? new Date(data.updated_at) : null,
@@ -282,78 +222,58 @@ export const LeadDataProvider = ({ children }) => {
           contacts: mappedContacts,
         };
 
-        leadsCache.current.set(cacheKey, {
-          data: mappedLead,
-          timestamp: Date.now(),
-        });
-
-        setLoadingLeads(false);
         return mappedLead;
       } catch (err) {
-        setErrorLeads(err.message || 'Failed to fetch lead details');
-        setLoadingLeads(false);
-        return null;
+        throw new Error(err.message || 'Failed to fetch lead details');
       }
     },
     [currentUser]
   );
 
+  // Use React Query for single lead
+  const useLeadQuery = (leadId) => {
+    return useQuery({
+      queryKey: ['lead', leadId],
+      queryFn: () => fetchLeadById(leadId),
+      enabled: !!leadId && !!currentUser,
+      staleTime: 5 * 60 * 1000,
+    });
+  };
   // Create a new lead
-  const createLead = useCallback(
-    async (leadData) => {
+  const createLeadMutation = useMutation({
+    mutationFn: async (leadData) => {
       if (!currentUser) return null;
 
       if (!hasPermission('create')) {
-        setErrorLeads('Permission denied for creating leads');
-        return null;
+        throw new Error('Permission denied for creating leads');
       }
 
-      setLoadingLeads(true);
-      setErrorLeads(null);
+      const insertData = {
+        name: leadData.name,
+        email: leadData.email,
+        phone: leadData.phone || null,
+        status: leadData.status || 'New',
+        stage_id: leadData.stageId || null,
+        pipeline_id: leadData.pipelineId || null,
+        assigned_to: leadData.assignedTo || null,
+        created_by: currentUser.id,
+        org_id: currentUser.orgId,
+        custom_fields: leadData.customFields || {},
+      };
 
-      try {
-        const insertData = {
-          name: leadData.name,
-          email: leadData.email,
-          phone: leadData.phone || null,
-          status: leadData.status || 'New',
-          stage_id: leadData.stageId || null,
-          pipeline_id: leadData.pipelineId || null,
-          assigned_to: leadData.assignedTo || null,
-          created_by: currentUser.id,
-          org_id: currentUser.orgId,
-          custom_fields: leadData.customFields || {},
-        };
+      const { data, error: insertError } = await supabaseWithOrg()
+        .from('crm.leads')
+        .insert([insertData])
+        .select()
+        .single();
 
-        const { data, error: insertError } = await supabaseWithOrg()
-          .from('crm.leads')
-          .insert([insertData])
-          .select()
-          .single();
-
-        if (insertError) throw insertError;
-
-        // Clear cache and update state (refresh fetch is better, too)
-        leadsCache.current.clear();
-        setLeads((prev) => [
-          {
-            ...data,
-            createdAt: data.created_at ? new Date(data.created_at) : null,
-            updatedAt: data.updated_at ? new Date(data.updated_at) : null,
-          },
-          ...prev,
-        ]);
-
-        setLoadingLeads(false);
-        return data;
-      } catch (err) {
-        setErrorLeads(err.message || 'Create lead failed');
-        setLoadingLeads(false);
-        return null;
-      }
+      if (insertError) throw insertError;
+      return data;
     },
-    [currentUser, hasPermission]
-  );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
 
   // Update existing lead by ID
   const updateLead = useCallback(
@@ -470,24 +390,14 @@ export const LeadDataProvider = ({ children }) => {
     async (leadId) => {
       if (!currentUser || !leadId) return [];
 
-      setLoadingContacts(true);
-      setErrorContacts(null);
-
-      const cacheKey = `contacts_${leadId}`;
-      const cached = contactsCache.current.get(cacheKey);
-      if (cached && isCacheValid(cached.timestamp)) {
-        setContacts(cached.data);
-        setLoadingContacts(false);
-        return cached.data;
-      }
-
       try {
         const { data, error: fetchError } = await supabaseWithOrg()
           .from('crm.contacts')
-          .select('id, lead_id, name, email, phone, designation, notes, created_by, org_id, created_at, updated_at')
+          .select('id, lead_id, name, email, phone, designation, notes, created_at, updated_at')
           .eq('lead_id', leadId)
           .eq('org_id', currentUser.orgId)
           .is('deleted_at', null)
+          .limit(20)
           .order('created_at', { ascending: false });
 
         if (fetchError) throw fetchError;
@@ -500,29 +410,27 @@ export const LeadDataProvider = ({ children }) => {
           phone: contact.phone,
           designation: contact.designation,
           notes: contact.notes,
-          createdBy: contact.created_by,
-          orgId: contact.org_id,
           createdAt: contact.created_at ? new Date(contact.created_at) : null,
           updatedAt: contact.updated_at ? new Date(contact.updated_at) : null,
         }));
 
-        contactsCache.current.set(cacheKey, {
-          data: mapped,
-          timestamp: Date.now(),
-        });
-
-        setContacts(mapped);
         return mapped;
       } catch (err) {
-        setErrorContacts(err.message || 'Failed to fetch contacts');
-        return [];
-      } finally {
-        setLoadingContacts(false);
+        throw new Error(err.message || 'Failed to fetch contacts');
       }
     },
     [currentUser]
   );
 
+  // Use React Query for contacts
+  const useContactsQuery = (leadId) => {
+    return useQuery({
+      queryKey: ['contacts', leadId],
+      queryFn: () => fetchContactsByLeadId(leadId),
+      enabled: !!leadId && !!currentUser,
+      staleTime: 5 * 60 * 1000,
+    });
+  };
   // Add a new contact to a lead
   const addContact = useCallback(
     async (contactData) => {
@@ -750,49 +658,34 @@ export const LeadDataProvider = ({ children }) => {
     [currentUser, fetchLeadById, hasPermission]
   );
 
-  // Clear caches and reset state helper
-  const clearCache = useCallback(() => {
-    leadsCache.current.clear();
-    contactsCache.current.clear();
-    setLeads([]);
-    setContacts([]);
-  }, []);
-
-  // Initial fetch triggered when user context is available
-  useEffect(() => {
-    if (!currentUser) return;
-
-    // Fetch in parallel for better performance
-    Promise.all([
-      fetchUsers(),
-      fetchLeads()
-    ]).catch(console.error);
-  }, [currentUser, fetchUsers, fetchLeads]);
 
   return (
     <LeadDataContext.Provider
       value={{
-        leads,
-        contacts,
-        users,
-        loading,
-        error,
-
-        fetchLeads,
+        // Query hooks
+        useLeadsQuery,
+        useLeadQuery,
+        useContactsQuery,
+        
+        // Legacy methods for backward compatibility
         fetchLeadById,
-        createLead,
+        fetchContactsByLeadId,
+        
+        // Mutations
+        createLead: createLeadMutation.mutate,
         updateLead,
         deleteLead,
         bulkUpdateLeads,
 
-        fetchContactsByLeadId,
         addContact,
         updateContact,
         deleteContact,
 
         hasPermission,
-        clearError,
-        clearCache,
+        
+        // Loading states
+        loading: createLeadMutation.isLoading,
+        error: createLeadMutation.error?.message,
       }}
     >
       {children}

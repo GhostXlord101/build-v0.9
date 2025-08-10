@@ -1,35 +1,37 @@
 import React, { useMemo } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { useLeadData } from '../contexts/LeadDataContext';
-import { useData } from '../contexts/DataContext'; // The DataContext you have for pipelines, stages, and users
+import { useData } from '../contexts/DataContext';
+import { CardSkeleton } from './SkeletonLoader';
 
 const Dashboard = () => {
   const { currentUser } = useUser();
 
-  // From LeadDataContext
-  const { leads, loading: leadsLoading, error: leadsError } = useLeadData();
+  // Use optimized queries
+  const { useLeadsQuery } = useLeadData();
+  const { data: leads = [], isLoading: leadsLoading, error: leadsError } = useLeadsQuery();
 
-  // From DataContext (pipelines, stages, users)
+  // From DataContext
   const { pipelines, stages, users, loading: dataLoading, error: dataError } = useData();
 
-  // Derive contacts count from LeadDataContext contacts array or fetch it if your context exposes it
-  // If your LeadDataContext exposes contacts for a current lead only, you may need another context or query for all contacts count.
-  // For now we can show "N/A" or 0 if no direct access:
-
-  // If contacts count is not in any context, you could add a fetchContacts method later.
-
   const stats = useMemo(() => ({
-    totalLeads: leads?.length ?? 0,
+    totalLeads: leads.length,
     totalUsers: users?.length ?? 0,
     totalPipelines: pipelines?.length ?? 0,
     totalStages: stages?.length ?? 0,
   }), [leads, users, pipelines, stages]);
 
-  // Placeholder contacts count — replace with actual value if you add a context or API call
-  const totalContacts = 'N/A';
-
   const loading = leadsLoading || dataLoading;
   const error = leadsError || dataError;
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-brand-black text-brand-accent p-6 font-sans">
+        <h1 className="text-4xl text-brand-violet font-bold mb-8">Dashboard</h1>
+        <CardSkeleton count={5} />
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-brand-black text-brand-accent p-6 font-sans">
@@ -43,7 +45,7 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
         <StatCard label="Leads" loading={loading} count={stats.totalLeads} />
-        <StatCard label="Contacts" loading={loading} count={totalContacts} />
+        <StatCard label="Contacts" loading={loading} count="N/A" />
         <StatCard label="Users" loading={loading} count={stats.totalUsers} />
         <StatCard label="Pipelines" loading={loading} count={stats.totalPipelines} />
         <StatCard label="Stages" loading={loading} count={stats.totalStages} />
@@ -52,7 +54,7 @@ const Dashboard = () => {
   );
 };
 
-const StatCard = ({ label, loading, count }) => (
+const StatCard = React.memo(({ label, loading, count }) => (
   <div className="bg-brand-surface rounded-lg p-6 flex flex-col items-center justify-center shadow border border-brand-violetDark">
     <h2 className="text-xl font-semibold text-brand-violet mb-2">{label}</h2>
     {loading ? (
@@ -64,6 +66,6 @@ const StatCard = ({ label, loading, count }) => (
       <p className="text-5xl font-extrabold">{count ?? '—'}</p>
     )}
   </div>
-);
+));
 
 export default Dashboard;

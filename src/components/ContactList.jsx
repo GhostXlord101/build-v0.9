@@ -14,43 +14,27 @@ import {
 } from 'lucide-react';
 import { useLeadData } from '../contexts/LeadDataContext';
 import ContactForm from './ContactForm';
+import { ListSkeleton } from './SkeletonLoader';
 
 /**
  * ContactList Component - Display and manage contacts for a specific lead
  */
 const ContactList = ({ leadId }) => {
   const { 
-    fetchContactsByLeadId, 
+    useContactsQuery,
     deleteContact, 
     hasPermission,
-    loading, 
-    error, 
-    clearError 
   } = useLeadData();
 
-  const [contacts, setContacts] = useState([]);
+  // Use React Query for contacts
+  const { data: contacts = [], isLoading, error, refetch } = useContactsQuery(leadId);
+  
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingContact, setDeletingContact] = useState(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
   const dropdownRef = useRef(null);
-
-  // Load contacts for the lead
-  const loadContacts = async () => {
-    if (leadId) {
-      try {
-        const contactsData = await fetchContactsByLeadId(leadId);
-        setContacts(contactsData || []);
-      } catch (error) {
-        // Silently logged by context, can choose to handle here if needed
-      }
-    }
-  };
-
-  useEffect(() => {
-    loadContacts();
-  }, [leadId]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -91,7 +75,7 @@ const ContactList = ({ leadId }) => {
 
     const success = await deleteContact(deletingContact.id);
     if (success) {
-      await loadContacts();
+      refetch();
     }
     setShowDeleteConfirm(false);
     setDeletingContact(null);
@@ -100,7 +84,7 @@ const ContactList = ({ leadId }) => {
   const handleFormSave = async () => {
     setShowAddForm(false);
     setEditingContact(null);
-    await loadContacts();
+    refetch();
   };
 
   const handleFormCancel = () => {
@@ -151,26 +135,16 @@ const ContactList = ({ leadId }) => {
             <AlertTriangle className="w-5 h-5 text-red-600 mr-3" />
             <span className="text-red-800">{error}</span>
           </div>
-          <button
-            onClick={clearError}
-            className="text-red-600 hover:text-red-800 transition-colors"
-            aria-label="Clear error"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
       )}
 
       {/* Loading State */}
-      {loading && (
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" aria-label="Loading contacts"></div>
-          <span className="ml-3 text-gray-600">Loading contacts...</span>
-        </div>
+      {isLoading && (
+        <ListSkeleton items={3} />
       )}
 
       {/* Contacts List or Empty */}
-      {!loading && (
+      {!isLoading && (
         <>
           {contacts.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-xl border border-gray-200">

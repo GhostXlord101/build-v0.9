@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
+import { QueryProvider } from './contexts/QueryProvider';
 
 // Context Providers
 import { UserProvider, useUser } from './contexts/UserContext';
@@ -103,15 +104,17 @@ const AppRoutes = () => {
 
 const App = () => (
   <ErrorBoundary FallbackComponent={ErrorFallback}>
-    <UserProvider>
-      <DataProvider>
-        <LeadDataProvider>
-          <Router>
-            <AppRoutes />
-          </Router>
-        </LeadDataProvider>
-      </DataProvider>
-    </UserProvider>
+    <QueryProvider>
+      <UserProvider>
+        <DataProvider>
+          <LeadDataProvider>
+            <Router>
+              <AppRoutes />
+            </Router>
+          </LeadDataProvider>
+        </DataProvider>
+      </UserProvider>
+    </QueryProvider>
   </ErrorBoundary>
 );
 

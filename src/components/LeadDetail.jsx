@@ -4,21 +4,22 @@ import { useUser } from '../contexts/UserContext';
 import ContactList from './ContactList';
 import ContactForm from './ContactForm';
 import { useParams, useNavigate } from 'react-router-dom';
+import { ListSkeleton } from './SkeletonLoader';
 
 const LeadDetail = ({ onClose, onUpdate }) => {
   const { leadId } = useParams();
   const navigate = useNavigate();
   const { currentUser } = useUser();
   const {
-    fetchLeadById,
+    useLeadQuery,
     updateLead,
     deleteLead,
     hasPermission,
-    loading,
-    error,
   } = useLeadData();
 
-  const [lead, setLead] = useState(null);
+  // Use React Query for lead data
+  const { data: lead, isLoading, error, refetch } = useLeadQuery(leadId);
+  
   const [editMode, setEditMode] = useState(false);
   const [showContactForm, setShowContactForm] = useState(false);
 
@@ -36,31 +37,24 @@ const LeadDetail = ({ onClose, onUpdate }) => {
   const [deleteError, setDeleteError] = useState(null);
   const [updateError, setUpdateError] = useState(null);
 
-  // Fetch lead details on mount or when leadId changes
-  const loadLead = useCallback(async () => {
-    if (!leadId) return;
-    const fetchedLead = await fetchLeadById(leadId);
-    if (fetchedLead) {
-      setLead(fetchedLead);
+  // Update form data when lead changes
+  useEffect(() => {
+    if (lead) {
       setFormData({
-        name: fetchedLead.name || '',
-        email: fetchedLead.email || '',
-        phone: fetchedLead.phone || '',
-        status: fetchedLead.status || '',
-        stageId: fetchedLead.stageId || '',
-        pipelineId: fetchedLead.pipelineId || '',
-        assignedTo: fetchedLead.assignedTo || '',
-        customFields: fetchedLead.customFields || {},
+        name: lead.name || '',
+        email: lead.email || '',
+        phone: lead.phone || '',
+        status: lead.status || '',
+        stageId: lead.stageId || '',
+        pipelineId: lead.pipelineId || '',
+        assignedTo: lead.assignedTo || '',
+        customFields: lead.customFields || {},
       });
       setEditMode(false);
       setDeleteError(null);
       setUpdateError(null);
     }
-  }, [leadId, fetchLeadById]);
-
-  useEffect(() => {
-    loadLead();
-  }, [loadLead]);
+  }, [lead]);
 
   // Handler for form field changes
   const handleFieldChange = (e) => {
@@ -104,10 +98,9 @@ const LeadDetail = ({ onClose, onUpdate }) => {
 
       const updatedLead = await updateLead(lead.id, updates);
       if (updatedLead) {
-        setLead((prev) => ({ ...prev, ...updatedLead }));
         setEditMode(false);
         onUpdate && onUpdate();
-        loadLead();
+        refetch();
       }
     } catch (err) {
       setUpdateError(err.message || 'Failed to update lead.');
@@ -142,13 +135,13 @@ const LeadDetail = ({ onClose, onUpdate }) => {
   // Called after a new contact is added
   const handleContactFormSave = () => {
     closeContactForm();
-    loadLead(); // Refresh to reload updated contacts
+    refetch(); // Refresh to reload updated contacts
   };
 
-  if (loading && !lead) {
+  if (isLoading) {
     return (
       <div className="p-6 text-brand-accent text-center select-none">
-        Loading lead details…
+        <ListSkeleton items={3} />
       </div>
     );
   }

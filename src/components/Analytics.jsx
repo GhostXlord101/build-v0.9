@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useLeadData } from '../contexts/LeadDataContext';
 import { Loader2, BarChart2, PieChart, TrendingUp } from 'lucide-react';
+import { CardSkeleton } from './SkeletonLoader';
 
 const Analytics = () => {
-  const { leads, loading, error } = useLeadData();
+  const { useLeadsQuery } = useLeadData();
+  const { data: leads = [], isLoading, error } = useLeadsQuery();
   
   const stats = useMemo(() => {
-    if (!leads || leads.length === 0) {
+    if (leads.length === 0) {
       return {
         totalLeads: 0,
         statusCounts: {},
@@ -38,6 +40,15 @@ const Analytics = () => {
     };
   }, [leads]);
 
+  if (isLoading) {
+    return (
+      <main className="min-h-screen p-6 bg-brand-black text-brand-accent font-sans select-none">
+        <h1 className="text-4xl font-bold mb-8 text-brand-violet">Analytics Dashboard</h1>
+        <CardSkeleton count={6} />
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen p-6 bg-brand-black text-brand-accent font-sans select-none">
       <h1 className="text-4xl font-bold mb-8 text-brand-violet">Analytics Dashboard</h1>
@@ -48,13 +59,7 @@ const Analytics = () => {
         </div>
       )}
 
-      {loading ? (
-        <div className="flex items-center justify-center space-x-2 text-brand-accent">
-          <Loader2 className="animate-spin h-6 w-6" aria-hidden="true" />
-          <span className="text-lg">Loading analytics...</span>
-        </div>
-      ) : (
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Total Leads */}
           <Card>
             <div className="flex items-center space-x-3">
@@ -119,15 +124,14 @@ const Analytics = () => {
             </Card>
           </div>
         </section>
-      )}
     </main>
   );
 };
 
-const Card = ({ children }) => (
+const Card = React.memo(({ children }) => (
   <div className="bg-brand-surface rounded-lg p-6 shadow-md border border-brand-violetDark">
     {children}
   </div>
-);
+));
 
 export default Analytics;
